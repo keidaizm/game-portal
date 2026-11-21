@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>ブロックス</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%;overflow:hidden;font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;background:#eef2f8;color:#26324a;-webkit-user-select:none;user-select:none}
+#app{height:100%;display:flex;flex-direction:column;align-items:center;padding:calc(env(safe-area-inset-top) + 6px) 8px calc(env(safe-area-inset-bottom) + 6px);gap:6px;max-width:720px;margin:0 auto}
+#chips{display:flex;gap:6px;width:100%}
+.chip{flex:1;background:#fff;border-radius:12px;padding:5px 5px;font-size:10px;gap:3px;font-weight:800;border:3px solid transparent;box-shadow:0 2px 0 rgba(30,50,90,.12);display:flex;align-items:center;min-width:0}
+.chip i{width:9px;height:9px;border-radius:3px;flex:none}
+.chip b{font-size:14px;margin-left:auto}
+.chip.on{border-color:currentColor;transform:translateY(-1px)}
+.chip span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#msg{font-size:13px;font-weight:800;min-height:18px;text-align:center}
+#bw{position:relative;flex:none}
+#cv{display:block;border-radius:10px;box-shadow:0 4px 16px rgba(30,50,90,.2);touch-action:none;background:#fff}
+#ctl{display:flex;gap:6px;width:100%}
+.btn{flex:1;border:0;border-radius:12px;background:#fff;font-size:15px;font-weight:900;padding:10px 4px;color:#26324a;box-shadow:0 3px 0 rgba(30,50,90,.18)}
+.btn:active{transform:translateY(2px);box-shadow:0 1px 0 rgba(30,50,90,.18)}
+.btn.go{background:#3b82f6;color:#fff;flex:1.6}
+.btn:disabled{opacity:.4}
+#tray{flex:1;min-height:0;width:100%;overflow-y:auto;background:#fff;border-radius:14px;padding:6px;display:flex;flex-wrap:wrap;gap:5px;align-content:flex-start;box-shadow:inset 0 2px 6px rgba(30,50,90,.08)}
+.pc{background:#f1f5fb;border-radius:9px;border:2px solid transparent;padding:3px;display:flex;align-items:center;justify-content:center;width:calc((100% - 30px)/7);min-width:44px;aspect-ratio:1}
+.pc.sel{border-color:#3b82f6;background:#e1ecff}
+.pc canvas{max-width:100%;max-height:100%}
+#ov{position:fixed;inset:0;background:rgba(20,30,60,.55);display:none;align-items:center;justify-content:center;padding:20px}
+#ov.show{display:flex}
+#card{background:#fff;border-radius:22px;padding:20px;width:100%;max-width:340px;text-align:center;box-shadow:0 10px 40px rgba(0,0,0,.3)}
+#card h2{margin:0 0 4px;font-size:24px}
+.rk{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:12px;background:#f1f5fb;margin:6px 0;font-weight:800;font-size:14px}
+.rk i{width:16px;height:16px;border-radius:5px}
+.rk b{margin-left:auto}
+.rk small{font-weight:700;opacity:.6}
+#card .btn{width:100%;margin-top:10px;background:#3b82f6;color:#fff}
+#card .btn.sub{background:#e8eef9;color:#26324a}
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="chips"></div>
+  <div id="msg"></div>
+  <div id="bw"><canvas id="cv"></canvas></div>
+  <div id="ctl">
+    <button class="btn" id="bRot">↻ まわす</button>
+    <button class="btn" id="bFlip">⇋ はんてん</button>
+    <button class="btn go" id="bPut" disabled>ここにおく</button>
+  </div>
+  <div id="tray"></div>
+</div>
+<div id="ov"><div id="card"></div></div>
+<script>
+(function(){
+'use strict';
+const $=id=>document.getElementById(id);
+const N=20;
+const COLORS=['#3b82f6','#f5b800','#ef4444','#22c55e'];
+const DARK=['#1d4fb8','#b07f00','#b01f1f','#12873f'];
+const NAMES=['あなた','きいろ','あか','みどり'];
+const STARTS=[[0,0],[0,N-1],[N-1,N-1],[N-1,0]];
+const SHAPES=[
+ ["#"],["##"],["###"],["#.","##"],
+ ["####"],["#.","#.","##"],["###",".#."],["##","##"],[".##","##."],
+ [".##","##.",".#."],["#####"],["#.","#.","#.","##"],[".#",".#","##","#."],["##","##","#."],
+ ["###",".#.",".#."],["#.#","###"],["#..","#..","###"],["#..","##.",".##"],[".#.","###",".#."],["####",".#.."],["##.",".#.",".##"]
+];
+function parse(s){const a=[];s.forEach((row,r)=>{for(let c=0;c<row.length;c++)if(row[c]==='#')a.push([r,c]);});return a;}
+function normc(a){let mr=1e9,mc=1e9;a.forEach(p=>{mr=Math.min(mr,p[0]);mc=Math.min(mc,p[1]);});return a.map(p=>[p[0]-mr,p[1]-mc]).sort((x,y)=>x[0]-y[0]||x[1]-y[1]);}
+function orients(cells){
+  const seen=new Set(),out=[];let cur=cells;
+  for(let f=0;f<2;f++){
+    let t=f?cur.map(p=>[p[0],-p[1]]):cur;
+    for(let r=0;r<4;r++){
+      t=t.map(p=>[p[1],-p[0]]);const n=normc(t),k=JSON.stringify(n);
+      if(!seen.has(k)){seen.add(k);out.push(n);}
+    }
+  }
+  return out;
+}
+const PIECES=SHAPES.map(s=>{const c=normc(parse(s));return{cells:c,size:c.length,ors:orients(c)};});
+
+// ---------- state ----------
+let board,rem,cur,passed,lastMono,over,sel,ori,ghost,busy,hist;
+function newGame(){
+  board=new Array(N*N).fill(-1);
+  rem=[0,1,2,3].map(()=>PIECES.map((_,i)=>i));
+  cur=0;passed=[false,false,false,false];lastMono=[false,false,false,false];over=false;sel=null;ori=0;ghost=null;busy=false;hist=[0,0,0,0];
+  $('ov').classList.remove('show');
+  buildTray();updateUI();draw();
+  beginTurn();
+}
+const first=p=>hist[p]===0;
+const inb=(r,c)=>r>=0&&c>=0&&r<N&&c<N;
+function validAt(p,cells){
+  let touch=false,corner=false;const st=STARTS[p];
+  for(const [r,c] of cells){
+    if(!inb(r,c)||board[r*N+c]!==-1)return false;
+    if(r===st[0]&&c===st[1])corner=true;
+    const o=[[1,0],[-1,0],[0,1],[0,-1]];
+    for(const d of o){const rr=r+d[0],cc=c+d[1];if(inb(rr,cc)&&board[rr*N+cc]===p)return false;}
+    const dg=[[1,1],[1,-1],[-1,1],[-1,-1]];
+    for(const d of dg){const rr=r+d[0],cc=c+d[1];if(inb(rr,cc)&&board[rr*N+cc]===p)touch=true;}
+  }
+  return first(p)?corner:touch;
+}
+function anchors(p){
+  if(first(p))return [STARTS[p]];
+  const res=[];
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){
+    if(board[r*N+c]!==-1)continue;
+    let ok=false,bad=false;
+    for(const d of [[1,0],[-1,0],[0,1],[0,-1]]){const rr=r+d[0],cc=c+d[1];if(inb(rr,cc)&&board[rr*N+cc]===p){bad=true;break;}}
+    if(bad)continue;
+    for(const d of [[1,1],[1,-1],[-1,1],[-1,-1]]){const rr=r+d[0],cc=c+d[1];if(inb(rr,cc)&&board[rr*N+cc]===p){ok=true;break;}}
+    if(ok)res.push([r,c]);
+  }
+  return res;
+}
+function allMoves(p,stopAtOne){
+  const moves=[],A=anchors(p);
+  for(const pi of rem[p]){
+    const pc=PIECES[pi];
+    for(let oi=0;oi<pc.ors.length;oi++){
+      const o=pc.ors[oi];
+      for(const a of A){
+        for(const q of o){
+          const dr=a[0]-q[0],dc=a[1]-q[1];
+          const cells=o.map(x=>[x[0]+dr,x[1]+dc]);
+          if(validAt(p,cells)){moves.push({pi,oi,cells});if(stopAtOne)return moves;}
+        }
+      }
+    }
+  }
+  return moves;
+}
+function place(p,pi,cells){
+  cells.forEach(([r,c])=>board[r*N+c]=p);
+  rem[p]=rem[p].filter(x=>x!==pi);hist[p]++;
+  lastMono[p]=(pi===0);
+  flash=cells.map(x=>x.slice());flashT=performance.now();
+}
+let flash=[],flashT=0;
+
+// ---------- AI ----------
+function cpuPick(p){
+  const mv=allMoves(p);if(!mv.length)return null;
+  let best=null,bs=-1e9;
+  for(const m of mv){
+    const sz=PIECES[m.pi].size;
+    let cx=0,cy=0;m.cells.forEach(([r,c])=>{cx+=r;cy+=c;});cx/=sz;cy/=sz;
+    const dist=Math.hypot(cx-9.5,cy-9.5);
+    // new corners
+    const set=new Set(m.cells.map(x=>x[0]*N+x[1]));let nc=0;const seen=new Set();
+    for(const [r,c] of m.cells){
+      for(const d of [[1,1],[1,-1],[-1,1],[-1,-1]]){
+        const rr=r+d[0],cc=c+d[1],k=rr*N+cc;
+        if(!inb(rr,cc)||seen.has(k)||board[k]!==-1||set.has(k))continue;
+        let bad=false;
+        for(const e of [[1,0],[-1,0],[0,1],[0,-1]]){const r2=rr+e[0],c2=cc+e[1];if(inb(r2,c2)&&(board[r2*N+c2]===p||set.has(r2*N+c2))){bad=true;break;}}
+        if(!bad){seen.add(k);nc++;}
+      }
+    }
+    // blocking: adjacent (diag/edge) to opponents
+    let blk=0;
+    for(const [r,c] of m.cells)for(const d of [[1,0],[-1,0],[0,1],[0,-1],[1,1],[1,-1],[-1,1],[-1,-1]]){const rr=r+d[0],cc=c+d[1];if(inb(rr,cc)){const v=board[rr*N+cc];if(v>=0&&v!==p)blk++;}}
+    const s=sz*2.2+nc*1.1-dist*(hist[p]<6?0.35:0.08)+blk*0.35+Math.random()*1.2;
+    if(s>bs){bs=s;best=m;}
+  }
+  return best;
+}
+
+// ---------- turn flow ----------
+function beginTurn(){
+  if(over)return;
+  if(passed.every(x=>x)){return finish();}
+  if(passed[cur]){cur=(cur+1)%4;return beginTurn();}
+  updateUI();
+  if(cur===0){
+    if(!allMoves(0,true).length){passed[0]=true;setMsg('置ける場所がないのでパスしました');cur=1;busy=true;setTimeout(()=>{busy=false;beginTurn();},900);return;}
+    busy=false;setMsg('あなたの番：ブロックをえらんで、盤面をタッチ');updateButtons();
+  }else{
+    busy=true;setMsg(NAMES[cur]+'が考えています…');updateButtons();
+    setTimeout(()=>{
+      const m=cpuPick(cur);
+      if(!m){passed[cur]=true;}else{place(cur,m.pi,m.cells);}
+      cur=(cur+1)%4;draw();updateUI();beginTurn();
+    },cur===1?550:380);
+  }
+}
+function finish(){
+  over=true;updateUI();
+  const sc=[0,1,2,3].map(p=>{
+    let left=0;rem[p].forEach(i=>left+=PIECES[i].size);
+    let s=-left;if(rem[p].length===0){s+=15;if(lastMono[p])s+=5;}
+    return{p,left,s};
+  }).sort((a,b)=>b.s-a.s);
+  const win=sc[0].p===0&&sc[0].s>sc[1].s;
+  const medal=['🥇','🥈','🥉','4位'];
+  $('card').innerHTML='<h2>'+(sc[0].p===0?(win?'かち！🎉':'ひきわけ！'):'おつかれさま！')+'</h2><div style="font-size:12px;opacity:.6">ブロックがのこった数が少ないほどえらい</div>'+
+    sc.map((x,i)=>'<div class="rk"><span>'+medal[i]+'</span><i style="background:'+COLORS[x.p]+'"></i>'+NAMES[x.p]+'<small>のこり'+x.left+'</small><b>'+(x.s>0?'+':'')+x.s+'</b></div>').join('')+
+    '<button class="btn" id="again">もういちど</button><button class="btn sub" id="close">盤面を見る</button>';
+  $('ov').classList.add('show');
+  $('again').onclick=newGame;$('close').onclick=()=>$('ov').classList.remove('show');
+  setMsg('ゲーム終了');
+}
+
+// ---------- UI ----------
+function setMsg(t){$('msg').textContent=t;}
+function updateUI(){
+  $('chips').innerHTML=[0,1,2,3].map(p=>{
+    let left=0;rem[p].forEach(i=>left+=PIECES[i].size);
+    return '<div class="chip'+(cur===p&&!over?' on':'')+'" style="color:'+DARK[p]+'"><i style="background:'+COLORS[p]+'"></i><span>'+NAMES[p]+(passed[p]?'(パス)':'')+'</span><b>'+left+'</b></div>';
+  }).join('');
+}
+function buildTray(){
+  const t=$('tray');t.innerHTML='';
+  rem[0].forEach(pi=>{
+    const d=document.createElement('div');d.className='pc'+(sel===pi?' sel':'');
+    const pc=PIECES[pi],cs=9,cv=document.createElement('canvas');
+    let w=0,h=0;pc.cells.forEach(([r,c])=>{w=Math.max(w,c+1);h=Math.max(h,r+1);});
+    cv.width=w*cs;cv.height=h*cs;cv.style.width=w*cs+'px';cv.style.height=h*cs+'px';
+    const x=cv.getContext('2d');x.fillStyle=COLORS[0];
+    pc.cells.forEach(([r,c])=>{x.fillRect(c*cs+.5,r*cs+.5,cs-1,cs-1);});
+    d.appendChild(cv);
+    d.onclick=()=>{if(over||busy||cur!==0)return;if(sel===pi){rotate();return;}sel=pi;ori=0;ghost=null;buildTray();updateButtons();draw();};
+    t.appendChild(d);
+  });
+}
+function curCells(){
+  if(sel===null||!ghost)return null;
+  return PIECES[sel].ors[ori].map(([r,c])=>[r+ghost.r,c+ghost.c]);
+}
+function updateButtons(){
+  const cells=curCells();
+  $('bPut').disabled=!(cells&&cur===0&&!busy&&!over&&validAt(0,cells));
+  $('bRot').disabled=$('bFlip').disabled=(sel===null||cur!==0||busy||over);
+}
+function rotate(){
+  if(sel===null)return;const o=PIECES[sel].ors;
+  // rotate: find next orientation among rotations (not flips) — approximate by cycling the list
+  const base=o[ori];const rot=normc(base.map(p=>[p[1],-p[0]]));const k=JSON.stringify(rot);
+  const ni=o.findIndex(x=>JSON.stringify(x)===k);ori=ni>=0?ni:(ori+1)%o.length;
+  keepCenter();updateButtons();draw();
+}
+function flip(){
+  if(sel===null)return;const o=PIECES[sel].ors;
+  const base=o[ori];const fl=normc(base.map(p=>[p[0],-p[1]]));const k=JSON.stringify(fl);
+  const ni=o.findIndex(x=>JSON.stringify(x)===k);ori=ni>=0?ni:ori;
+  keepCenter();updateButtons();draw();
+}
+function keepCenter(){ /* ghost stays at its top-left; clamp inside board */
+  if(!ghost)return;const o=PIECES[sel].ors[ori];let h=0,w=0;o.forEach(([r,c])=>{h=Math.max(h,r+1);w=Math.max(w,c+1);});
+  ghost.r=Math.max(0,Math.min(N-h,ghost.r));ghost.c=Math.max(0,Math.min(N-w,ghost.c));
+}
+$('bRot').onclick=rotate;$('bFlip').onclick=flip;
+$('bPut').onclick=()=>{
+  const cells=curCells();if(!cells||!validAt(0,cells))return;
+  place(0,sel,cells);sel=null;ghost=null;cur=1;buildTray();draw();updateUI();updateButtons();beginTurn();
+};
+
+// ---------- board input ----------
+const cv=$('cv'),ctx=cv.getContext('2d');let CS=18,DPR=1;
+function resize(){
+  const W=window.innerWidth,H=window.innerHeight;
+  const avail=Math.min(W-16,720-16,H-330);
+  CS=Math.max(12,Math.floor(Math.min(avail,Math.max(220,H-330))/N));
+  const S=CS*N;DPR=Math.min(window.devicePixelRatio||1,2);
+  cv.width=S*DPR;cv.height=S*DPR;cv.style.width=S+'px';cv.style.height=S+'px';
+  draw();
+}
+function setGhostFrom(e){
+  if(sel===null||busy||over||cur!==0)return;
+  const b=cv.getBoundingClientRect();let x=(e.clientX-b.left)/CS,y=(e.clientY-b.top)/CS;
+  if(e.pointerType==='touch')y-=2.2;
+  const o=PIECES[sel].ors[ori];let h=0,w=0;o.forEach(([r,c])=>{h=Math.max(h,r+1);w=Math.max(w,c+1);});
+  let r=Math.floor(y-h/2+0.5),c=Math.floor(x-w/2+0.5);
+  r=Math.max(0,Math.min(N-h,r));c=Math.max(0,Math.min(N-w,c));
+  ghost={r,c};updateButtons();draw();
+}
+let dragging=false;
+cv.addEventListener('pointerdown',e=>{dragging=true;try{cv.setPointerCapture(e.pointerId);}catch(_){}setGhostFrom(e);});
+cv.addEventListener('pointermove',e=>{if(dragging)setGhostFrom(e);});
+cv.addEventListener('pointerup',()=>{dragging=false;});
+cv.addEventListener('pointercancel',()=>{dragging=false;});
+
+// ---------- draw ----------
+function cell(x,y,col,dark,a){
+  ctx.globalAlpha=a==null?1:a;
+  ctx.fillStyle=dark;ctx.fillRect(x+.5,y+.5,CS-1,CS-1);
+  ctx.fillStyle=col;ctx.fillRect(x+1.5,y+1.5,CS-3,CS-3.5);
+  ctx.fillStyle='rgba(255,255,255,.35)';ctx.fillRect(x+2.5,y+2.5,CS-5,Math.max(2,CS*0.22));
+  ctx.globalAlpha=1;
+}
+function draw(){
+  if(!board)return;
+  ctx.setTransform(DPR,0,0,DPR,0,0);const S=CS*N;
+  ctx.fillStyle='#f6f8fc';ctx.fillRect(0,0,S,S);
+  ctx.strokeStyle='#d6deec';ctx.lineWidth=1;ctx.beginPath();
+  for(let i=0;i<=N;i++){ctx.moveTo(i*CS+.5,0);ctx.lineTo(i*CS+.5,S);ctx.moveTo(0,i*CS+.5);ctx.lineTo(S,i*CS+.5);}ctx.stroke();
+  // start corners
+  for(let p=0;p<4;p++){if(hist[p]===0){const[r,c]=STARTS[p];ctx.fillStyle=COLORS[p];ctx.globalAlpha=.28;ctx.fillRect(c*CS,r*CS,CS,CS);ctx.globalAlpha=1;ctx.strokeStyle=COLORS[p];ctx.lineWidth=2;ctx.strokeRect(c*CS+2,r*CS+2,CS-4,CS-4);}}
+  for(let r=0;r<N;r++)for(let c=0;c<N;c++){const v=board[r*N+c];if(v>=0)cell(c*CS,r*CS,COLORS[v],DARK[v]);}
+  // last-move flash
+  const age=performance.now()-flashT;
+  if(flash.length&&age<700){ctx.fillStyle='rgba(255,255,255,'+(0.7*(1-age/700))+')';flash.forEach(([r,c])=>ctx.fillRect(c*CS,r*CS,CS,CS));requestAnimationFrame(draw);}
+  // ghost
+  const cells=curCells();
+  if(cells&&cur===0&&!over){
+    const ok=validAt(0,cells);
+    cells.forEach(([r,c])=>{if(ok)cell(c*CS,r*CS,COLORS[0],DARK[0],0.75);else{ctx.fillStyle='rgba(239,68,68,.55)';ctx.fillRect(c*CS+1,r*CS+1,CS-2,CS-2);}});
+  }
+}
+window.addEventListener('resize',resize);
+resize();newGame();
+window.__bk={get board(){return board;},get rem(){return rem;},get over(){return over;},allMoves,cpuPick,place,validAt,PIECES,get cur(){return cur;},set cur(v){cur=v;},get hist(){return hist;},get passed(){return passed;},finish,draw};
+})();
+</script>
+</body>
+</html>

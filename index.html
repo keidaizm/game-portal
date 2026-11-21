@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="ja"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="theme-color" content="#1b2147">
+<meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-capable" content="yes">
+<link rel="manifest" href="manifest.webmanifest"><link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<title>ゲームひろば</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}
+html,body{margin:0;height:100%;background:#141a3a;color:#fff;font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;overscroll-behavior:none}
+body{background:radial-gradient(ellipse at 20% 0%,#2f3a7c,#141a3a 60%) fixed}
+#home{height:100%;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:max(14px,env(safe-area-inset-top)) max(22px,env(safe-area-inset-right)) max(20px,env(safe-area-inset-bottom)) max(22px,env(safe-area-inset-left))}
+header{display:flex;align-items:center;gap:14px;margin:4px 0 16px}
+header .logo{width:52px;height:52px;border-radius:15px;box-shadow:0 4px 0 rgba(0,0,0,.3)}
+header h1{margin:0;font-size:28px;letter-spacing:.04em}
+header small{display:block;font-size:12px;opacity:.7;font-weight:700;margin-top:2px}
+#st{margin-left:auto;font-size:12px;font-weight:800;padding:7px 12px;border-radius:999px;background:rgba(255,255,255,.12)}
+#st.ok{background:rgba(80,220,130,.25)}
+#grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:16px}
+.card{position:relative;border:0;border-radius:22px;padding:0;overflow:hidden;color:#fff;text-align:left;font-family:inherit;box-shadow:0 6px 0 rgba(0,0,0,.35),0 10px 24px rgba(0,0,0,.35);transition:transform .08s;min-height:176px;display:flex;flex-direction:column}
+.card:active{transform:translateY(4px) scale(.985);box-shadow:0 2px 0 rgba(0,0,0,.35)}
+.card .ic{flex:1;display:flex;align-items:center;justify-content:center;font-size:66px;padding-top:12px;filter:drop-shadow(0 4px 0 rgba(0,0,0,.2))}
+.card .tx{background:rgba(0,0,0,.28);padding:10px 14px 12px}
+.card b{display:block;font-size:17px}
+.card span{display:block;font-size:12px;opacity:.88;font-weight:700;margin-top:2px}
+.tag{position:absolute;top:10px;left:10px;font-size:10px;font-weight:900;background:rgba(0,0,0,.35);padding:3px 8px;border-radius:999px}
+.new{position:absolute;top:10px;right:10px;font-size:10px;font-weight:900;background:#ffd23a;color:#6a4200;padding:3px 8px;border-radius:999px}
+footer{text-align:center;font-size:11px;opacity:.55;margin-top:22px}
+/* player */
+#play{position:fixed;inset:0;background:#000;display:none;z-index:10}
+#play.on{display:block}
+#fr{position:absolute;inset:0;width:100%;height:100%;border:0;background:#000}
+#hb{position:absolute;left:0;top:50%;transform:translateY(-50%);width:20px;height:64px;border:0;border-radius:0 12px 12px 0;background:rgba(255,255,255,.22);color:#fff;font-size:12px;z-index:11;padding:0}
+#hm{position:absolute;left:12px;top:50%;transform:translateY(-50%);background:#fff;color:#2a3350;border-radius:18px;padding:14px;display:none;z-index:12;box-shadow:0 8px 30px rgba(0,0,0,.6);width:190px;text-align:center;font-weight:800}
+#hm.on{display:block}
+#hm button{display:block;width:100%;border:0;border-radius:12px;padding:12px;margin-top:8px;font-size:15px;font-weight:900;font-family:inherit}
+#hm .a{background:#ff7a45;color:#fff}#hm .b{background:#e8ecf6;color:#2a3350}
+</style></head><body>
+<div id="home">
+  <header><img class="logo" src="icons/icon-192.png" alt=""><div><h1>ゲームひろば</h1><small>あそびたいゲームをタップ！</small></div><div id="st">じゅんび中…</div></header>
+  <div id="grid"></div>
+  <footer>ぜんぶのゲームは ネットなしでも あそべるよ</footer>
+</div>
+<div id="play"><iframe id="fr" allow="autoplay; fullscreen; accelerometer; gyroscope" title="game"></iframe>
+  <button id="hb" aria-label="メニュー">▶</button>
+  <div id="hm"><div>ゲームちゅう</div><button class="a" id="hh">🏠 ホームにもどる</button><button class="b" id="hc">つづける</button></div>
+</div>
+<script>
+'use strict';
+const GAMES=[
+ {id:'tetris',t:'ブロックパズル',d:'テトリス風 / 4列でテトリス！',i:'🧱',c:['#3a8dff','#5b4bd6'],tag:'パズル'},
+ {id:'suika',t:'フルーツ合体',d:'同じフルーツをくっつけてスイカに',i:'🍉',c:['#ff7a7a','#e0405a'],tag:'パズル'},
+ {id:'pinball',t:'えんにち ピンボール',d:'バーを引いて玉をはじこう',i:'🏮',c:['#ff9a3d','#d9382c'],tag:'アクション'},
+ {id:'runner',t:'ドタバタ・ランナー',d:'4ステージ+ウラミチをさがせ',i:'🤸',c:['#4cd964','#1e9e62'],tag:'アクション'},
+ {id:'obby',t:'ブロックオビー',d:'ジャンプでゴールをめざせ',i:'🏃',c:['#ff5a8a','#b3369a'],tag:'3D'},
+ {id:'craft',t:'ブロッククラフト',d:'ブロックを積んで村をたんけん',i:'⛏️',c:['#6cc04a','#3a7d2a'],tag:'3D'},
+ {id:'bowling',t:'スワイプ・ボウリング',d:'スワイプで投げてストライク！',i:'🎳',c:['#4ad0ff','#2a6fd6'],tag:'3D'},
+ {id:'pool',t:'ナインボール',d:'ビリヤードでポケットをねらえ',i:'🎱',c:['#2fa86a','#146b45'],tag:'3D'},
+ {id:'blokus',t:'ブロックス',d:'ピースをならべて陣地ひろげ',i:'🟦',c:['#ffd23a','#f09a1a'],tag:'ボード'},
+ {id:'bingo',t:'ビンゴゲーム',d:'ならんだらビンゴ！',i:'🎰',c:['#b36bff','#7a3ad6'],tag:'ボード'},
+ {id:'squishy',t:'ぷにぷにスクイーズ',d:'つぶして のばして あそぼう',i:'🫧',c:['#ff8fd0','#c85ad6'],tag:'おもちゃ'},
+ {id:'crepe',t:'クレープやさん',d:'おいしいクレープをつくろう',i:'🥞',c:['#ffb36b','#e0753a'],tag:'おみせ'}
+];
+const $=id=>document.getElementById(id);
+const grid=$('grid');
+GAMES.forEach(g=>{const b=document.createElement('button');b.className='card';b.style.background='linear-gradient(160deg,'+g.c[0]+','+g.c[1]+')';
+ b.innerHTML='<span class="tag">'+g.tag+'</span><div class="ic">'+g.i+'</div><div class="tx"><b>'+g.t+'</b><span>'+g.d+'</span></div>';
+ b.onclick=()=>openGame(g);grid.appendChild(b);});
+let cur=null;
+function openGame(g){
+  cur=g;try{localStorage.setItem('portal_last',g.id);}catch(e){}
+  $('fr').src='games/'+g.id+'.html';$('play').classList.add('on');$('hm').classList.remove('on');
+  history.pushState({g:g.id},'','#'+g.id);
+  try{if(!document.fullscreenElement&&!matchMedia('(display-mode: standalone)').matches&&!matchMedia('(display-mode: fullscreen)').matches)document.documentElement.requestFullscreen&&document.documentElement.requestFullscreen().catch(()=>{});}catch(e){}
+}
+function closeGame(fromPop){
+  $('play').classList.remove('on');$('hm').classList.remove('on');$('fr').src='about:blank';cur=null;
+  if(!fromPop&&location.hash)history.back();
+}
+window.addEventListener('popstate',()=>{if(cur)closeGame(true);});
+$('hb').onclick=()=>$('hm').classList.toggle('on');
+$('hc').onclick=()=>$('hm').classList.remove('on');
+$('hh').onclick=()=>{closeGame(false);};
+if(location.hash)history.replaceState(null,'',location.pathname);
+// offline status
+const st=$('st');
+function setSt(ok,txt){st.textContent=txt;st.classList.toggle('ok',ok);}
+if('serviceWorker' in navigator&&location.protocol!=='file:'){
+  navigator.serviceWorker.register('sw.js').then(reg=>{
+    const check=()=>caches.keys().then(ks=>{if(ks.some(k=>k.startsWith('gh-portal'))){setSt(true,'✓ オフラインOK');}else setSt(false,'じゅんび中…');}).catch(()=>setSt(false,'オンライン'));
+    check();navigator.serviceWorker.addEventListener('message',e=>{if(e.data==='cached')check();});setTimeout(check,2500);setTimeout(check,8000);
+  }).catch(()=>setSt(false,'オンライン'));
+}else setSt(location.protocol==='file:',location.protocol==='file:'?'✓ ファイルから起動':'オンライン');
+</script></body></html>
